@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>小鱼来啦 - Fish Match</title>
+    <style>
+        :root {
+            --bg-color: #FDFBF7; --card-bg: #FFFFFF;
+            --primary-color: #A8D0E6; --secondary-color: #FFD1DC;
+            --text-color: #5A5A5A; --shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-color); font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+
+        /* 启动页样式 */
+        #start-screen { position: absolute; width: 100%; height: 100%; background: var(--bg-color); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; transition: opacity 0.5s; }
+        .start-title { font-size: 40px; font-weight: 900; background: linear-gradient(45deg, var(--primary-color), var(--secondary-color)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; animation: float 3s ease-in-out infinite; }
+        .start-sub { color: #aaa; margin-bottom: 40px; font-size: 14px; }
+        .start-btn { padding: 15px 60px; border: none; border-radius: 50px; background: linear-gradient(45deg, var(--primary-color), var(--secondary-color)); color: white; font-size: 18px; font-weight: bold; box-shadow: 0 5px 15px rgba(168, 208, 230, 0.4); cursor: pointer; transition: 0.2s; }
+        .start-btn:active { transform: scale(0.95); }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+        /* 游戏主体 */
+        h1 { margin: 10px 0; font-size: 22px; font-weight: 800; background: linear-gradient(45deg, var(--primary-color), var(--secondary-color)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 2px; }
+        #game-board { position: relative; width: 320px; height: 320px; background: rgba(255,255,255,0.6); border-radius: 20px; box-shadow: var(--shadow); margin-bottom: 15px; border: 2px solid rgba(255,255,255,0.8); }
+        .card { position: absolute; width: 50px; height: 50px; background: var(--card-bg); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 28px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.03); }
+        .card:active { transform: scale(0.9); }
+        .card.blocked { opacity: 0.7; cursor: not-allowed; filter: grayscale(0.3); }
+        .card.removed { transform: scale(0) rotate(20deg); opacity: 0; pointer-events: none; }
+        #slot-area { display: flex; gap: 6px; padding: 8px 12px; background: white; border-radius: 20px; box-shadow: var(--shadow); min-width: 320px; justify-content: center; min-height: 60px; align-items: center; }
+        .slot-card { width: 40px; height: 40px; background: var(--bg-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid #eee; }
+        @keyframes popIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+        /* 工具栏 */
+        .tools { margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        .tool-btn { padding: 8px 15px; border: none; border-radius: 30px; background: white; color: var(--text-color); font-size: 13px; font-weight: 600; box-shadow: var(--shadow); cursor: pointer; transition: 0.2s; }
+        .tool-btn:hover, .tool-btn:active { background: var(--primary-color); color: white; }
+        .share-btn { background: var(--secondary-color); color: white; }
+
+        /* 弹窗 */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: 0.3s; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-box { background: white; padding: 40px; border-radius: 30px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1); transform: translateY(20px); transition: 0.3s; max-width: 80%; }
+        .modal-overlay.active .modal-box { transform: translateY(0); }
+        .modal-box h2 { margin: 0 0 10px; font-size: 26px; }
+        .modal-box p { margin: 0 0 20px; color: #888; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <!-- 启动页 -->
+    <div id="start-screen">
+        <div class="start-title">🐟 小鱼来啦</div>
+        <div class="start-sub">超解压的韩系消除小游戏</div>
+        <button class="start-btn" onclick="startGame()">开始摸鱼 🫧</button>
+    </div>
+
+    <h1>🐟 小鱼来啦 🫧</h1>
+    <div id="game-board"></div>
+    <div id="slot-area"></div>
+
+    <div class="tools">
+        <button class="tool-btn" onclick="game.undo()">↩️ 撤回</button>
+        <button class="tool-btn" onclick="game.shuffle()">🔀 洗牌</button>
+        <button class="tool-btn" onclick="game.restart()">🔄 重来</button>
+        <button class="tool-btn share-btn" onclick="shareGame()">🔗 分享给好友</button>
+    </div>
+
+    <!-- 结算弹窗 -->
+    <div id="modal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 id="modal-title"></h2>
+            <p id="modal-msg"></p>
+            <button class="tool-btn" onclick="game.restart()">再玩一次</button>
+        </div>
+    </div>
+
+<script>
+// 启动与分享逻辑
+function startGame() {
+    document.getElementById('start-screen').style.opacity = '0';
+    setTimeout(() => {
+        document.getElementById('start-screen').style.display = 'none';
+        window.game = new FishGame(); 
+    }, 500);
+}
+
+function shareGame() {
+    const url = window.location.href;
+    if (navigator.share) {
+        navigator.share({ title: '小鱼来啦', text: '快来帮我看看这关怎么过！🐟', url: url }).catch(() => {});
+    } else {
+        navigator.clipboard.writeText(url).then(() => {
+            alert('链接已复制！快发给好友一起摸鱼吧 🐟');
+        }).catch(() => {
+            prompt('复制以下链接发给好友：', url);
+        });
+    }
+}
+
+/** 核心游戏逻辑 (已修复死局Bug) **/
+class FishGame {
+    constructor() {
+        this.icons = ['🐟', '🐠', '🐡', '🦑', '🐙', '🦀', '🐚', '🪸'];
+        this.totalTypes = 6; 
+        this.cards = []; 
+        this.slots = []; 
+        this.maxSlots = 7;
+        this.boardEl = document.getElementById('game-board');
+        this.slotEl = document.getElementById('slot-area');
+        this.modalEl = document.getElementById('modal');
+        this.init();
+    }
+
+    init() {
+        this.cards = []; 
+        this.slots = []; 
+        this.boardEl.innerHTML = '';
+        this.renderSlots(); 
+        this.generateCards(); 
+        this.renderBoard();
+        this.updateBlockedState(); 
+        this.hideModal();
+    }
+
+    restart() { this.init(); }
+
+    // 【核心修复】：确保生成的图案数量绝对是3的倍数，杜绝死局
+    generateCards() {
+        let pool = [];
+        // 每种图案生成 3 的倍数（这里每种生成 15 个，即 5 组）
+        for(let i = 0; i < this.totalTypes; i++) {
+            for(let j = 0; j < 15; j++) {
+                pool.push(this.icons[i]);
+            }
+        }
+        
+        // 洗牌
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+
+        // 生成3层堆叠效果，总数 = 15 * 6 = 90 张牌
+        const layers = [
+            { count: 24, z: 1 }, 
+            { count: 30, z: 2 }, 
+            { count: 36, z: 3 }
+        ];
+
+        let id = 0;
+        layers.forEach(layer => {
+            for(let i = 0; i < layer.count; i++) {
+                this.cards.push({ 
+                    id: id++, 
+                    icon: pool.pop(), 
+                    x: Math.random() * 240 + 10, 
+                    y: Math.random() * 240 + 10, 
+                    z: layer.z, 
+                    removed: false, 
+                    el: null 
+                });
+            }
+        });
+        this.cards.sort((a,b) => a.z - b.z);
+    }
+
+    renderBoard() {
+        this.cards.forEach(card => {
+            const div = document.createElement('div'); 
+            div.className = 'card';
+            div.style.left = `${card.x}px`; 
+            div.style.top = `${card.y}px`; 
+            div.style.zIndex = card.z;
+            div.innerText = card.icon; 
+            div.dataset.id = card.id;
+            div.onclick = () => this.selectCard(card.id);
+            this.boardEl.appendChild(div); 
+            card.el = div;
+        });
+    }
+
+    renderSlots() {
+        this.slotEl.innerHTML = '';
+        for(let i = 0; i < this.maxSlots; i++) { 
+            const div = document.createElement('div'); 
+            div.className = 'slot-card'; 
+            div.style.visibility = 'hidden'; 
+            this.slotEl.appendChild(div); 
+        }
+    }
+
+    updateSlotsUI() {
+        const slotDivs = this.slotEl.children;
+        for(let i = 0; i < this.maxSlots; i++) {
+            if(i < this.slots.length) { 
+                slotDivs[i].innerText = this.slots[i].icon; 
+                slotDivs[i].style.visibility = 'visible'; 
+            } else { 
+                slotDivs[i].innerText = ''; 
+                slotDivs[i].style.visibility = 'hidden'; 
+            }
+        }
+    }
+
+    isBlocked(card) {
+        if(card.removed) return true;
+        return this.cards.some(other => 
+            !other.removed && 
+            other.z > card.z && 
+            Math.abs(other.x - card.x) < 40 && 
+            Math.abs(other.y - card.y) < 40
+        );
+    }
+
+    updateBlockedState() { 
+        this.cards.forEach(card => { 
+            if(!card.removed) card.el.classList.toggle('blocked', this.isBlocked(card)); 
+        }); 
+    }
+
+    selectCard(id) {
+        const card = this.cards.find(c => c.id === id);
+        if(!card || card.removed || this.isBlocked(card) || this.slots.length >= this.maxSlots) return;
+        
+        card.removed = true; 
+        card.el.classList.add('removed');
+        
+        // 插入槽位（相同图案靠拢）
+        let insertIndex = this.slots.length;
+        for(let i = 0; i < this.slots.length; i++) {
+            if(this.slots[i].icon === card.icon) { 
+                insertIndex = i + 1; 
+                while(insertIndex < this.slots.length && this.slots[insertIndex].icon === card.icon) insertIndex++; 
+                break; 
+            }
+        }
+        this.slots.splice(insertIndex, 0, card); 
+        this.updateSlotsUI(); 
+        this.updateBlockedState(); 
+        this.checkMatch();
+        
+        if(this.slots.length >= this.maxSlots) setTimeout(() => this.showModal(false), 300);
+    }
+
+    checkMatch() {
+        const countMap = {}; 
+        this.slots.forEach(s => countMap[s.icon] = (countMap[s.icon] || 0) + 1);
+        
+        let matched = false;
+        for(let icon in countMap) {
+            if(countMap[icon] >= 3) {
+                matched = true; 
+                let removeCount = 3;
+                this.slots = this.slots.filter(s => !(s.icon === icon && removeCount-- > 0));
+            }
+        }
+        
+        if(matched) {
+            this.updateSlotsUI();
+            // 只有当场上没牌，且槽位也清空时，才算真正通关
+            if(this.cards.filter(c => !c.removed).length === 0 && this.slots.length === 0) {
+                setTimeout(() => this.showModal(true), 300);
+            }
+        }
+    }
+
+    undo() { 
+        if(this.slots.length === 0) return; 
+        const card = this.slots.pop(); 
+        card.removed = false; 
+        card.el.classList.remove('removed'); 
+        this.updateSlotsUI(); 
+        this.updateBlockedState(); 
+    }
+
+    shuffle() {
+        this.cards.filter(c => !c.removed).forEach(card => { 
+            card.x = Math.random() * 240 + 10; 
+            card.y = Math.random() * 240 + 10; 
+            card.el.style.left = `${card.x}px`; 
+            card.el.style.top = `${card.y}px`; 
+        });
+        this.updateBlockedState();
+    }
+
+    showModal(win) {
+        const titleEl = document.getElementById('modal-title');
+        const msgEl = document.getElementById('modal-msg');
+        if(win) {
+            titleEl.innerText = "🎉 你成功啦！";
+            msgEl.innerText = "小鱼祝你天天开心 🐟✨";
+        } else {
+            titleEl.innerText = "😵 槽位满了！";
+            msgEl.innerText = "鱼儿们迷路了，再试一次吧";
+        }
+        this.modalEl.classList.add('active');
+    }
+
+    hideModal() { 
+        this.modalEl.classList.remove('active'); 
+    }
+}
+</script>
+</body>
+</html>
